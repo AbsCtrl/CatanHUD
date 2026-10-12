@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "CatanHUD",
+  "version": "0.1.0",
+  "description": "Heads-up display for Colonist.io: resource tracking, dice stats and dev card odds from the public game log.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://colonist.io/*", "https://*.colonist.io/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
