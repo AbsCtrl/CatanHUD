@@ -1,5 +1,4 @@
 import type { Game } from "../engine/game";
-import { hints } from "../engine/hints";
 import { DEV_CARDS, type DevCard, RESOURCES, type Resource } from "../types";
 
 /** Card colors close to Colonist's own, with a letter so they read without color too. */
@@ -11,15 +10,15 @@ const RES_STYLE: Record<Resource, { letter: string; bg: string; fg: string; name
   ore: { letter: "O", bg: "#8a93a6", fg: "#10131a", name: "Ore" },
 };
 
-const DEV_LABEL: Record<DevCard, string> = {
-  knight: "Knight",
-  victoryPoint: "Victory point",
-  roadBuilding: "Road building",
-  yearOfPlenty: "Year of plenty",
-  monopoly: "Monopoly",
+const DEV_LABEL: Record<DevCard, { short: string; long: string }> = {
+  knight: { short: "Knight", long: "Knight" },
+  victoryPoint: { short: "VP", long: "Victory point" },
+  roadBuilding: { short: "Road", long: "Road building" },
+  yearOfPlenty: { short: "Plenty", long: "Year of plenty" },
+  monopoly: { short: "Mono", long: "Monopoly" },
 };
 
-type Section = "resources" | "dice" | "dev" | "hints" | "settings";
+type Section = "resources" | "dice" | "dev" | "settings";
 
 export interface HudPrefs {
   scale: number;
@@ -27,15 +26,24 @@ export interface HudPrefs {
   minimized: boolean;
   left: number | null;
   top: number | null;
+  /** Fixed discard limit, or null to pick it from the game mode. */
+  discardLimit: number | null;
 }
 
-const DEFAULT_PREFS: HudPrefs = { scale: 1, collapsed: ["settings"], minimized: false, left: null, top: null };
+const DEFAULT_PREFS: HudPrefs = {
+  scale: 1,
+  collapsed: ["dice", "settings"],
+  minimized: false,
+  left: null,
+  top: null,
+  discardLimit: null,
+};
 
 const STYLE = `
 :host { all: initial; }
 .panel {
   position: fixed; top: 80px; right: 16px; z-index: 2147483647;
-  width: 340px; max-height: 85vh; overflow: auto;
+  width: 400px; max-height: 90vh; overflow: auto;
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: #f5f7fa;
   background: #151922; border: 1px solid #2c3342; border-radius: 10px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.5);
@@ -58,22 +66,23 @@ button:hover { background: #445069; }
 .sec.closed > .content { display: none; }
 table { width: 100%; border-collapse: separate; border-spacing: 0 3px; color: inherit; font: inherit; }
 th, td { padding: 3px 2px; text-align: center; font-variant-numeric: tabular-nums; }
-th.name, td.name { text-align: left; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chip { display: inline-block; width: 22px; height: 22px; line-height: 22px; border-radius: 5px; font-size: 12px; font-weight: 700; }
-.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+th.name, td.name { text-align: left; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+.chip { display: inline-block; width: 34px; height: 34px; line-height: 34px; border-radius: 7px; font-size: 16px; font-weight: 800; }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 7px; vertical-align: 0; }
 tr.player td { background: #1c212c; }
 tr.player td:first-child { border-radius: 6px 0 0 6px; padding-left: 6px; }
 tr.player td:last-child { border-radius: 0 6px 6px 0; }
 tr.me td { background: #262c1d; }
 tr.me td.name { font-weight: 700; }
-td.n { font-size: 15px; font-weight: 600; }
+tr.player td { padding: 6px 2px; }
+td.n { font-size: 28px; font-weight: 700; line-height: 1.1; }
 td.zero { color: #4f5768; font-weight: 400; }
 td.unsure { color: #ffbf5e; }
-td.unsure sup { font-size: 10px; margin-left: 1px; }
-td.total { font-size: 15px; font-weight: 700; }
-.badge { display: inline-block; min-width: 24px; padding: 0 5px; border-radius: 11px; background: #333c4e; }
+td.unsure sup { font-size: 14px; margin-left: 1px; }
+td.total { font-size: 22px; font-weight: 800; }
+.badge { display: inline-block; min-width: 36px; padding: 2px 6px; border-radius: 18px; background: #333c4e; }
 .badge.over { background: #b8382f; }
-tr.bank td { color: #a9b2c3; font-size: 13px; }
+tr.bank td { color: #a9b2c3; font-size: 14px; }
 .note { font-size: 12px; color: #a9b2c3; margin-top: 4px; }
 .note .u { color: #ffbf5e; }
 .dice { display: flex; align-items: flex-end; gap: 3px; height: 96px; padding-top: 14px; }
@@ -86,10 +95,12 @@ tr.bank td { color: #a9b2c3; font-size: 13px; }
 .axis span { flex: 1; text-align: center; font-size: 12px; color: #c7cfdc; }
 .axis span.hot { color: #fff; font-weight: 700; }
 .key { display: inline-block; width: 12px; vertical-align: middle; margin-right: 4px; }
-.dev { display: grid; grid-template-columns: 110px 1fr 40px; align-items: center; gap: 4px 8px; }
-.meter { height: 8px; background: #262d3b; border-radius: 4px; overflow: hidden; }
-.meter i { display: block; height: 100%; background: #9b7bea; }
-.pct { text-align: right; font-variant-numeric: tabular-nums; }
+.dev { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; }
+.dev div { background: #1c212c; border-radius: 6px; padding: 4px 0; }
+.dev b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.dev span { font-size: 12px; color: #a9b2c3; }
+.dev .zero b { color: #4f5768; }
+select { font: inherit; background: #0e1117; color: inherit; border: 1px solid #333c4e; border-radius: 5px; padding: 2px 4px; }
 ul { margin: 0; padding-left: 18px; }
 li { margin: 2px 0; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0; }
@@ -158,9 +169,12 @@ export class Hud {
     });
     this.body.addEventListener("change", (e) => {
       const input = e.target as HTMLInputElement;
-      if (input.name !== "self") return;
-      this.selfName = input.value.trim();
-      this.cb.onSelfName(this.selfName);
+      if (input.name === "self") {
+        this.selfName = input.value.trim();
+        this.cb.onSelfName(this.selfName);
+      } else if (input.name === "discard") {
+        this.setPrefs({ discardLimit: input.value === "auto" ? null : Number(input.value) });
+      }
     });
 
     this.makeDraggable(this.panel.querySelector(".head")!);
@@ -215,12 +229,12 @@ export class Hud {
     const input = this.body.querySelector("input");
     if (input && this.root.activeElement === input) return; // don't clobber the name field while typing
 
+    const mode = game.mode ? `${game.mode} · ` : "";
     this.body.innerHTML = [
-      this.section("resources", "Cards in hand", this.resources(game)),
+      this.section("resources", `Cards · ${mode}discard over ${game.discardLimit}`, this.resources(game)),
+      this.section("dev", `Dev cards · ${game.devDeckRemaining()} in deck`, this.dev(game)),
       this.section("dice", `Dice · ${game.rolls} rolls`, this.dice(game)),
-      this.section("dev", `Next dev card · ${game.devDeckRemaining()} left`, this.dev(game)),
-      this.section("hints", "Hints", this.hintList(game)),
-      this.section("settings", "Settings", this.settings()),
+      this.section("settings", "Settings", this.settings(game)),
     ].join("");
   }
 
@@ -246,11 +260,11 @@ export class Hud {
         }).join("");
         const me = p === game.selfName;
         const color = this.colors.get(p) ?? (me ? "#ffd76a" : "#6b7385");
-        const over = range.total > 7;
+        const over = range.total > game.discardLimit;
         const totalTip = over ? `${range.total} cards: loses ${Math.floor(range.total / 2)} on a 7` : `${range.total} cards`;
         return (
           `<tr class="player${me ? " me" : ""}">` +
-          `<td class="name" title="${esc(p)}"><span class="dot" style="background:${esc(color)}"></span>${esc(p)}</td>` +
+          `<td class="name" title="${esc(p)}${this.devNote(game, p)}"><span class="dot" style="background:${esc(color)}"></span>${esc(p)}</td>` +
           `${cells}<td class="total" title="${totalTip}"><span class="badge${over ? " over" : ""}">${range.total}</span></td></tr>`
         );
       })
@@ -292,22 +306,44 @@ export class Hud {
       <div class="note"><span class="key" style="border-top:2px solid #ffd76a"></span>expected for ${game.rolls} rolls</div>`;
   }
 
+  /** Tooltip suffix: how many dev cards this player is sitting on. */
+  private devNote(game: Game, player: string): string {
+    const n = game.devInHand(player);
+    return n ? `, ${n} unplayed dev card${n > 1 ? "s" : ""}` : "";
+  }
+
   private dev(game: Game): string {
-    const odds = game.devOdds();
-    return `<div class="dev">${DEV_CARDS.map((c) => {
-      const pct = Math.round(odds[c] * 100);
-      return `<span>${DEV_LABEL[c]}</span><span class="meter"><i style="width:${pct}%"></i></span><span class="pct">${pct}%</span>`;
-    }).join("")}</div>`;
+    const unseen = game.devUnseen();
+    const grid = DEV_CARDS.map(
+      (c) =>
+        `<div class="${unseen[c] === 0 ? "zero" : ""}" title="${DEV_LABEL[c].long}: ${unseen[c]} not seen yet">` +
+        `<b>${unseen[c]}</b><span>${DEV_LABEL[c].short}</span></div>`,
+    ).join("");
+
+    const lines: string[] = [];
+    const me = game.selfName;
+    if (me) {
+      const held = game.devHeldKnown(me);
+      const mine = DEV_CARDS.filter((c) => held[c] > 0).map((c) => `${DEV_LABEL[c].long} ${held[c]}`);
+      if (mine.length) lines.push(`You hold: ${mine.join(", ")}`);
+    }
+    for (const p of game.players) {
+      if (p === me) continue;
+      const n = game.devInHand(p);
+      if (n) lines.push(`${esc(p)} holds ${n} unplayed`);
+    }
+    return `<div class="dev">${grid}</div>
+      <div class="note">Not yet seen: in the deck or in someone's hand.${lines.length ? "<br>" + lines.join("<br>") : ""}</div>`;
   }
 
-  private hintList(game: Game): string {
-    const items = hints(game);
-    return items.length ? `<ul>${items.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : `<div class="note">Nothing yet.</div>`;
-  }
-
-  private settings(): string {
+  private settings(game: Game): string {
+    const auto = `Auto (${game.isOneVsOne ? "1v1: 9" : "7"})`;
+    const options = [`<option value="auto">${auto}</option>`]
+      .concat([7, 8, 9, 10, 11, 12].map((n) => `<option value="${n}"${this.prefs.discardLimit === n ? " selected" : ""}>${n}</option>`))
+      .join("");
     return `
       <div class="row"><span>Your Colonist name</span><input name="self" value="${esc(this.selfName)}" placeholder="username"></div>
+      <div class="row"><span>Discard when over</span><select name="discard">${options}</select></div>
       <div class="row"><span>Counts look wrong?</span><button data-act="copy" title="Copy raw log entries to paste into a bug report">Copy log</button></div>`;
   }
 

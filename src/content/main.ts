@@ -5,6 +5,7 @@ import { type LogEntry, LogWatcher } from "./logSource";
 
 const entries: LogEntry[] = [];
 let game = new Game();
+let discardLimit: number | null = null;
 
 async function loadSettings(): Promise<{ selfName: string; prefs: Partial<HudPrefs> }> {
   try {
@@ -19,13 +20,14 @@ async function loadSettings(): Promise<{ selfName: string; prefs: Partial<HudPre
 }
 
 function rebuild(selfName: string): void {
-  game = new Game(selfName || null);
+  game = new Game(selfName || null, discardLimit);
   for (const e of entries) if (e.event) game.apply(e.event as GameEvent);
 }
 
 async function main(): Promise<void> {
   const { selfName, prefs } = await loadSettings();
-  game = new Game(selfName || null);
+  discardLimit = typeof prefs.discardLimit === "number" ? prefs.discardLimit : null;
+  game = new Game(selfName || null, discardLimit);
 
   const hud = new Hud(
     {
@@ -36,6 +38,8 @@ async function main(): Promise<void> {
       },
       onPrefs(next) {
         chrome.storage.local.set({ hudPrefs: next }).catch(() => {});
+        discardLimit = next.discardLimit;
+        game.discardLimitOverride = discardLimit;
       },
       onCopyLog() {
         const dump = JSON.stringify(entries.map(({ html, line }) => ({ html, line })), null, 1);

@@ -13,6 +13,8 @@ const DEV_DECK_SIZE = Object.values(DEV_DECK).reduce((a, b) => a + b, 0);
 
 export interface PlayerStats {
   devBought: number;
+  /** Bought cards whose face we saw (only your own purchases show it). */
+  devBoughtKnown: Record<DevCard, number>;
   devPlayed: Record<DevCard, number>;
   roads: number;
   settlements: number;
@@ -23,9 +25,12 @@ export interface PlayerStats {
   discarded: number;
 }
 
+function noDevCards(): Record<DevCard, number> {
+  return Object.fromEntries(DEV_CARDS.map((c) => [c, 0])) as Record<DevCard, number>;
+}
+
 function emptyStats(): PlayerStats {
-  const devPlayed = Object.fromEntries(DEV_CARDS.map((c) => [c, 0])) as Record<DevCard, number>;
-  return { devBought: 0, devPlayed, roads: 0, settlements: 0, cities: 0, produced: 0, stolenFrom: 0, discarded: 0 };
+  return { devBought: 0, devBoughtKnown: noDevCards(), devPlayed: noDevCards(), roads: 0, settlements: 0, cities: 0, produced: 0, stolenFrom: 0, discarded: 0 };
 }
 
 /**
@@ -42,11 +47,32 @@ export class Game {
   /** Roads still owed from a Road Building card, per player. */
   private freeRoads = new Map<string, number>();
 
-  /** @param selfName your Colonist username, so "you" in the log maps to it. */
-  constructor(public selfName: string | null = null) {}
+  /**
+   * @param selfName your Colonist username, so "you" in the log maps to it.
+   * @param discardLimitOverride fixed discard limit; null picks one from the player count.
+   */
+  constructor(
+    public selfName: string | null = null,
+    public discardLimitOverride: number | null = null,
+  ) {}
 
   get players(): string[] {
     return [...this.stats.keys()];
+  }
+
+  /** Colonist's 1v1 mode plays with a discard limit of 9; other modes use 7. */
+  get isOneVsOne(): boolean {
+    return this.players.length === 2;
+  }
+
+  /** A player holding more than this many cards discards half on a 7. */
+  get discardLimit(): number {
+    return this.discardLimitOverride ?? (this.isOneVsOne ? 9 : 7);
+  }
+
+  get mode(): string {
+    const n = this.players.length;
+    return n === 0 ? "" : this.isOneVsOne ? "1v1" : `${n} players`;
   }
 
   get rolls(): number {
@@ -101,7 +127,9 @@ export class Game {
         break;
       }
       case "buyDev": {
-        this.player(ev.player).devBought += 1;
+        const s = this.player(ev.player);
+        s.devBought += 1;
+        if (ev.card) s.devBoughtKnown[ev.card] += 1;
         this.hands.remove(this.name(ev.player), COSTS.devCard);
         break;
       }
@@ -166,21 +194,33 @@ export class Game {
   }
 
   /**
-   * Chance that the next dev card bought is each type. Cards bought but not yet
-   * played are unknown to us, so by symmetry the next draw is distributed like
-   * all cards that haven't been revealed by being played.
+   * Cards of each type we haven't seen yet: still in the deck, or bought by
+   * someone and not played. Excludes cards played and your own cards in hand.
    */
-  devOdds(): Record<DevCard, number> {
-    const unseen = { ...DEV_DECK };
-    let unseenTotal = DEV_DECK_SIZE;
+  devUnseen(): Record<DevCard, number> {
+    const out = { ...DEV_DECK };
     for (const s of this.stats.values()) {
       for (const c of DEV_CARDS) {
-        unseen[c] -= s.devPlayed[c];
-        unseenTotal -= s.devPlayed[c];
+        const heldKnown = Math.max(0, s.devBoughtKnown[c] - s.devPlayed[c]);
+        out[c] = Math.max(0, out[c] - s.devPlayed[c] - heldKnown);
       }
     }
-    const out = {} as Record<DevCard, number>;
-    for (const c of DEV_CARDS) out[c] = unseenTotal > 0 ? Math.max(0, unseen[c]) / unseenTotal : 0;
+    return out;
+  }
+
+  /** Dev cards a player has bought and not played yet. */
+  devInHand(player: string): number {
+    const s = this.stats.get(player);
+    if (!s) return 0;
+    const played = DEV_CARDS.reduce((sum, c) => sum + s.devPlayed[c], 0);
+    return Math.max(0, s.devBought - played);
+  }
+
+  /** Your own unplayed dev cards by type, from the faces shown on your purchases. */
+  devHeldKnown(player: string): Record<DevCard, number> {
+    const s = this.stats.get(player);
+    const out = noDevCards();
+    if (s) for (const c of DEV_CARDS) out[c] = Math.max(0, s.devBoughtKnown[c] - s.devPlayed[c]);
     return out;
   }
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { Game } from "../src/engine/game";
-import { hints } from "../src/engine/hints";
 import { parseLine } from "../src/parser/parseLine";
 
 function play(lines: string[], self: string | null = null): Game {
@@ -91,15 +90,36 @@ describe("Game", () => {
     expect(g.hands.range("Bob").min.brick).toBe(1);
   });
 
-  it("computes dev deck and odds from played cards", () => {
-    const g = play([
-      "Alice received starting resources {wool} {grain} {ore}",
-      "Alice bought {devBack}",
-      "Alice used {knight}",
-    ]);
-    expect(g.devDeckRemaining()).toBe(24);
-    expect(g.devOdds().knight).toBeCloseTo(13 / 24);
-    expect(g.devOdds().monopoly).toBeCloseTo(2 / 24);
+  it("counts unseen dev cards, including your own purchases", () => {
+    const g = play(
+      [
+        "Me received starting resources {wool} {grain} {ore} {wool} {grain} {ore}",
+        "Bob received starting resources {wool} {grain} {ore}",
+        "Me bought {monopoly}",
+        "Me bought {knight}",
+        "Bob bought {devBack}",
+        "Bob used {knight}",
+        "Me used {knight}",
+      ],
+      "Me",
+    );
+    expect(g.devDeckRemaining()).toBe(22);
+    expect(g.devUnseen()).toEqual({ knight: 12, victoryPoint: 5, roadBuilding: 2, yearOfPlenty: 2, monopoly: 1 });
+    expect(g.devHeldKnown("Me").monopoly).toBe(1);
+    expect(g.devHeldKnown("Me").knight).toBe(0);
+    expect(g.devInHand("Me")).toBe(1);
+    expect(g.devInHand("Bob")).toBe(0);
+  });
+
+  it("uses a discard limit of 9 in 1v1 and 7 otherwise", () => {
+    const g = play(["Me rolled {dice1} {dice2}", "Bob rolled {dice3} {dice4}"], "Me");
+    expect(g.mode).toBe("1v1");
+    expect(g.discardLimit).toBe(9);
+    g.apply(parseLine("Ann rolled {dice3} {dice4}")!);
+    expect(g.mode).toBe("3 players");
+    expect(g.discardLimit).toBe(7);
+    g.discardLimitOverride = 9;
+    expect(g.discardLimit).toBe(9);
   });
 
   it("computes bank counts and expected dice", () => {
@@ -107,12 +127,5 @@ describe("Game", () => {
     expect(g.hands.bank().ore).toBe(17);
     expect(g.expectedDice()[7]).toBeCloseTo(2 / 6);
     expect(g.expectedDice()[2]).toBeCloseTo(2 / 36);
-  });
-
-  it("produces build hints for the player", () => {
-    const g = play(["Me received starting resources {lumber} {brick} {wool} {grain} {grain} {ore} {ore}"], "Me");
-    const h = hints(g);
-    expect(h[0]).toBe("You can build: Road, Settlement, Dev card.");
-    expect(h[1]).toBe("One card away from: City.");
   });
 });

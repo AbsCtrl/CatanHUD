@@ -80,7 +80,8 @@ describe("parseLine", () => {
   });
 
   it("parses dev card buys and plays", () => {
-    expect(parseLine("Alice bought {devBack}")).toEqual({ type: "buyDev", player: "Alice" });
+    expect(parseLine("Alice bought {devBack}")).toEqual({ type: "buyDev", player: "Alice", card: null });
+    expect(parseLine("Alice bought {yearOfPlenty}")).toEqual({ type: "buyDev", player: "Alice", card: "yearOfPlenty" });
     expect(parseLine("Alice used {knight}")).toEqual({ type: "playDev", player: "Alice", card: "knight" });
     expect(parseLine("Alice used Year of Plenty")).toMatchObject({ card: "yearOfPlenty" });
     expect(parseLine("Alice took from bank {ore} {ore}")).toMatchObject({ type: "gain", source: "yearOfPlenty" });

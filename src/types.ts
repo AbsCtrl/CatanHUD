@@ -12,7 +12,7 @@ export type GameEvent =
   | { type: "roll"; player: string; dice: [number, number] }
   | { type: "gain"; player: string; cards: Hand; source: "production" | "starting" | "yearOfPlenty" }
   | { type: "build"; player: string; piece: Piece; free: boolean }
-  | { type: "buyDev"; player: string }
+  | { type: "buyDev"; player: string; card: DevCard | null }
   | { type: "playDev"; player: string; card: DevCard }
   | { type: "steal"; thief: string; victim: string; resource: Resource | null }
   | { type: "monopoly"; player: string; resource: Resource; count: number }

@@ -17,10 +17,10 @@ Open **Settings** in the panel and type your Colonist username so lines that say
 
 ## What it shows
 
-- **Resources:** each player's cards by type and total, plus what's left in the bank. Names are shown in each player's game color. When someone steals a card you couldn't see, the affected counts turn amber with a `?` and show the most likely value; hover for the full range. They firm up as later builds and trades rule options out. A red total means that player loses cards on a 7.
-- **Dice:** a histogram of rolls so far against the expected 2d6 curve.
-- **Dev cards:** cards left in the deck, and the odds of each type on the next buy based on what has been played.
-- **Hints:** what you can build now, what you're one card from, who is over 7 cards, and the best steal target by hand size.
+- **Cards:** each player's cards by type and total, plus what's left in the bank. Names are shown in each player's game color. When someone steals a card you couldn't see, the affected counts turn amber with a `?` and show the most likely value; hover for the full range. They firm up as later builds and trades rule options out.
+- **Game mode and discard limit:** the header shows the mode (1v1 or the player count) and the discard limit: 9 in 1v1, 7 otherwise. A total over the limit turns red. You can fix the limit in **Settings** if a lobby uses a different rule.
+- **Dev cards:** cards left in the deck, and how many of each type haven't been seen yet (still in the deck or in someone's hand). Your own purchases are counted from the card face the log shows you, and each opponent's unplayed count is listed.
+- **Dice:** a histogram of rolls against the expected 2d6 curve (folded by default).
 
 ## If counts look wrong
 
@@ -37,5 +37,5 @@ npm run watch     # rebuild on change, then hit reload in chrome://extensions
 Layout:
 
 - `src/parser/` turns a log entry into a typed event (`tokenize.ts` maps icons to `{lumber}`-style tokens, `parseLine.ts` matches the phrasing).
-- `src/engine/` is pure state: `hands.ts` tracks possible hands across unknown steals, `game.ts` applies events, `hints.ts` builds suggestions.
+- `src/engine/` is pure state: `hands.ts` tracks possible hands across unknown steals, `game.ts` applies events and derives counts..
 - `src/content/` is the browser side: `logSource.ts` finds and watches the game log, `hud.ts` draws the panel in a Shadow DOM.
