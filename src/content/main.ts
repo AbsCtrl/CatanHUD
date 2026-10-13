@@ -1,17 +1,20 @@
 import { Game } from "../engine/game";
 import type { GameEvent } from "../types";
-import { Hud } from "./hud";
+import { Hud, type HudPrefs } from "./hud";
 import { type LogEntry, LogWatcher } from "./logSource";
 
 const entries: LogEntry[] = [];
 let game = new Game();
 
-async function loadSelfName(): Promise<string> {
+async function loadSettings(): Promise<{ selfName: string; prefs: Partial<HudPrefs> }> {
   try {
-    const { selfName } = await chrome.storage.local.get("selfName");
-    return typeof selfName === "string" ? selfName : "";
+    const { selfName, hudPrefs } = await chrome.storage.local.get(["selfName", "hudPrefs"]);
+    return {
+      selfName: typeof selfName === "string" ? selfName : "",
+      prefs: hudPrefs && typeof hudPrefs === "object" ? hudPrefs : {},
+    };
   } catch {
-    return "";
+    return { selfName: "", prefs: {} };
   }
 }
 
@@ -21,7 +24,7 @@ function rebuild(selfName: string): void {
 }
 
 async function main(): Promise<void> {
-  const selfName = await loadSelfName();
+  const { selfName, prefs } = await loadSettings();
   game = new Game(selfName || null);
 
   const hud = new Hud(
@@ -30,6 +33,9 @@ async function main(): Promise<void> {
         chrome.storage.local.set({ selfName: name }).catch(() => {});
         rebuild(name);
         hud.update(game);
+      },
+      onPrefs(next) {
+        chrome.storage.local.set({ hudPrefs: next }).catch(() => {});
       },
       onCopyLog() {
         const dump = JSON.stringify(entries.map(({ html, line }) => ({ html, line })), null, 1);
@@ -40,12 +46,14 @@ async function main(): Promise<void> {
       },
     },
     selfName,
+    prefs,
   );
   hud.setStatus("looking for game log…");
   hud.update(game);
 
   const watcher = new LogWatcher((entry) => {
     entries.push(entry);
+    hud.addColors(entry.colors);
     if (entry.event) game.apply(entry.event);
     hud.setStatus(`${entries.length} log lines`);
     hud.update(game);

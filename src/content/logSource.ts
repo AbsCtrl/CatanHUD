@@ -22,6 +22,19 @@ export interface LogEntry {
   html: string;
   line: string;
   event: GameEvent | null;
+  /** Player name -> text color, from names Colonist renders in their player color. */
+  colors: Record<string, string>;
+}
+
+/** Colonist shows player names in colored spans; collect them so the HUD can match. */
+export function nameColors(entry: Element): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const el of Array.from(entry.querySelectorAll<HTMLElement>("[style*='color']"))) {
+    const name = el.textContent?.trim();
+    const color = el.style.color;
+    if (name && color && name.length <= 40) out[name] = color;
+  }
+  return out;
 }
 
 function looksLikeLog(el: Element): boolean {
@@ -111,7 +124,7 @@ export class LogWatcher {
     }
     const line = tokenize(el);
     if (!line) return;
-    this.onEntry({ html: el.outerHTML, line, event: parseLine(line) });
+    this.onEntry({ html: el.outerHTML, line, event: parseLine(line), colors: nameColors(el) });
   }
 
   stop(): void {
