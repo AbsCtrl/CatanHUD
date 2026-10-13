@@ -37,5 +37,5 @@ npm run watch     # rebuild on change, then hit reload in chrome://extensions
 Layout:
 
 - `src/parser/` turns a log entry into a typed event (`tokenize.ts` maps icons to `{lumber}`-style tokens, `parseLine.ts` matches the phrasing).
-- `src/engine/` is pure state: `hands.ts` tracks possible hands across unknown steals, `game.ts` applies events and derives counts..
+- `src/engine/` is pure state: `hands.ts` tracks possible hands across unknown steals, `game.ts` applies events and derives counts.
 - `src/content/` is the browser side: `logSource.ts` finds and watches the game log, `hud.ts` draws the panel in a Shadow DOM.
