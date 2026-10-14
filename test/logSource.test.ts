@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { findLogContainer } from "../src/content/logSource";
+import { findLogContainer, nameColors } from "../src/content/logSource";
 
 describe("findLogContainer", () => {
   it("finds a log by its content even with unknown class names", () => {
@@ -16,5 +16,13 @@ describe("findLogContainer", () => {
   it("returns null when there is no log", () => {
     document.body.innerHTML = `<div><div>Lobby</div><div>Play</div></div>`;
     expect(findLogContainer()).toBeNull();
+  });
+});
+
+describe("nameColors", () => {
+  it("reads player colors from colored name spans", () => {
+    const div = document.createElement("div");
+    div.innerHTML = `<span style="color: rgb(214, 58, 58)">Kurt</span> stole from <span style="color:#2f6fd6">Ann</span>`;
+    expect(nameColors(div)).toEqual({ Kurt: "rgb(214, 58, 58)", Ann: "rgb(47, 111, 214)" });
   });
 });

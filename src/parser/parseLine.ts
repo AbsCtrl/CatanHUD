@@ -40,6 +40,14 @@ function firstDevCard(text: string): DevCard | null {
   return null;
 }
 
+/** A dev card named by its icon only (text like "bought development card" is not a face). */
+function devIcon(text: string): DevCard | null {
+  for (const m of text.matchAll(/\{(\w+)\}/g)) {
+    if (DEV_SET.has(m[1])) return m[1] as DevCard;
+  }
+  return null;
+}
+
 function piece(text: string): Piece | null {
   if (/\{city\}|\bcity\b/i.test(text)) return "city";
   if (/\{settlement\}|\bsettlement\b/i.test(text)) return "settlement";
@@ -90,7 +98,11 @@ const RULES: Rule[] = [
       return p ? { type: "build", player: m[1], piece: p, free: false } : null;
     },
   ],
-  [new RegExp(`^${NAME} bought\\b(.*)$`), (m) => ({ type: "buyDev", player: m[1] })],
+  [
+    // Your own purchases show the card's face; everyone else's show the card back.
+    new RegExp(`^${NAME} bought\\b(.*)$`),
+    (m) => ({ type: "buyDev", player: m[1], card: devIcon(m[2]) }),
+  ],
   [
     new RegExp(`^${NAME} used\\b(.*)$`),
     (m) => {
