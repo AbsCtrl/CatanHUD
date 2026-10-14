@@ -129,7 +129,9 @@ export class Game {
       case "buyDev": {
         const s = this.player(ev.player);
         s.devBought += 1;
-        if (ev.card) s.devBoughtKnown[ev.card] += 1;
+        // Only your own purchases reveal the card. If an opponent's line carries a
+        // card icon (e.g. an image we mistake for a face), don't count it as known.
+        if (ev.card && this.selfName && this.name(ev.player) === this.selfName) s.devBoughtKnown[ev.card] += 1;
         this.hands.remove(this.name(ev.player), COSTS.devCard);
         break;
       }

@@ -98,10 +98,8 @@ tr.bank td { color: #a9b2c3; font-size: 14px; }
 .axis span { flex: 1; text-align: center; font-size: 12px; color: #c7cfdc; }
 .axis span.hot { color: #fff; font-weight: 700; }
 .key { display: inline-block; width: 12px; vertical-align: middle; margin-right: 4px; }
-.dev { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; }
-.dev div { background: #1c212c; border-radius: 6px; padding: 4px 0; }
-.dev b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
-.dev span { font-size: 12px; color: #a9b2c3; }
+.dev { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: #a9b2c3; }
+.dev b { color: #f5f7fa; font-variant-numeric: tabular-nums; }
 .dev .zero b { color: #4f5768; }
 select { font: inherit; background: #0e1117; color: inherit; border: 1px solid #333c4e; border-radius: 5px; padding: 2px 4px; }
 ul { margin: 0; padding-left: 18px; }
@@ -235,7 +233,7 @@ export class Hud {
     const mode = game.mode ? `${game.mode} · ` : "";
     this.body.innerHTML = [
       this.section("resources", `Cards · ${mode}discard over ${game.discardLimit}`, this.resources(game)),
-      this.section("dev", `Dev cards · ${game.devDeckRemaining()} in deck`, this.dev(game)),
+      this.section("dev", `Dev deck · ${game.devDeckRemaining()} left`, this.dev(game)),
       this.section("dice", `Dice · ${game.rolls} rolls`, this.dice(game)),
       this.section("settings", "Settings", this.settings(game)),
     ].join("");
@@ -312,12 +310,11 @@ export class Hud {
       <div class="note"><span class="key" style="border-top:2px solid #ffd76a"></span>expected for ${game.rolls} rolls</div>`;
   }
 
+  /** One compact line of unseen cards by type, then your own cards (opponents' are in the Dev column). */
   private dev(game: Game): string {
     const unseen = game.devUnseen();
-    const grid = DEV_CARDS.map(
-      (c) =>
-        `<div class="${unseen[c] === 0 ? "zero" : ""}" title="${DEV_LABEL[c].long}: ${unseen[c]} not seen yet">` +
-        `<b>${unseen[c]}</b><span>${DEV_LABEL[c].short}</span></div>`,
+    const counts = DEV_CARDS.map(
+      (c) => `<span class="${unseen[c] === 0 ? "zero" : ""}" title="${DEV_LABEL[c].long}: ${unseen[c]} not seen yet">${DEV_LABEL[c].short} <b>${unseen[c]}</b></span>`,
     ).join("");
 
     const lines: string[] = [];
@@ -327,13 +324,9 @@ export class Hud {
       const mine = DEV_CARDS.filter((c) => held[c] > 0).map((c) => `${DEV_LABEL[c].long} ${held[c]}`);
       if (mine.length) lines.push(`You hold: ${mine.join(", ")}`);
     }
-    for (const p of game.players) {
-      if (p === me) continue;
-      const n = game.devInHand(p);
-      if (n) lines.push(`${esc(p)} holds ${n} unplayed`);
-    }
-    return `<div class="dev">${grid}</div>
-      <div class="note">Not yet seen: in the deck or in someone's hand.${lines.length ? "<br>" + lines.join("<br>") : ""}</div>`;
+    return `<div class="dev" title="Not seen yet: in the deck or in someone's hand">${counts}</div>${
+      lines.length ? `<div class="note">${lines.join(" · ")}</div>` : ""
+    }`;
   }
 
   private settings(game: Game): string {
