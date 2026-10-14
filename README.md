@@ -17,7 +17,7 @@ Open **Settings** in the panel and type your Colonist username so lines that say
 
 ## What it shows
 
-- **Cards:** each player's cards by type and total, plus what's left in the bank. Names are shown in each player's game color. When someone steals a card you couldn't see, the affected counts turn amber with a `?` and show the most likely value; hover for the full range. They firm up as later builds and trades rule options out.
+- **Cards:** each player's Wood, Brick, Sheep, Wheat and Steel, their unplayed dev cards, and their resource total, plus what's left in the bank and dev deck. Names are shown in each player's game color. When someone steals a card you couldn't see, the affected counts turn amber with a `?` and show the most likely value; hover for the full range. They firm up as later builds and trades rule options out.
 - **Game mode and discard limit:** the header shows the mode (1v1 or the player count) and the discard limit: 9 in 1v1, 7 otherwise. A total over the limit turns red. You can fix the limit in **Settings** if a lobby uses a different rule.
 - **Dev cards:** cards left in the deck, and how many of each type haven't been seen yet (still in the deck or in someone's hand). Your own purchases are counted from the card face the log shows you, and each opponent's unplayed count is listed.
 - **Dice:** a histogram of rolls against the expected 2d6 curve (folded by default).

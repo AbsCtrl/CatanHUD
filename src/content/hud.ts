@@ -1,14 +1,15 @@
 import type { Game } from "../engine/game";
 import { DEV_CARDS, type DevCard, RESOURCES, type Resource } from "../types";
 
-/** Card colors close to Colonist's own, with a letter so they read without color too. */
-const RES_STYLE: Record<Resource, { letter: string; bg: string; fg: string; name: string }> = {
-  lumber: { letter: "L", bg: "#2f7d3a", fg: "#fff", name: "Lumber" },
-  brick: { letter: "B", bg: "#c4522f", fg: "#fff", name: "Brick" },
-  wool: { letter: "W", bg: "#8fd16a", fg: "#10200a", name: "Wool" },
-  grain: { letter: "G", bg: "#f2c230", fg: "#2a2000", name: "Grain" },
-  ore: { letter: "O", bg: "#8a93a6", fg: "#10131a", name: "Ore" },
+/** Card colors close to Colonist's own, labeled with the names players actually use. */
+const RES_STYLE: Record<Resource, { bg: string; fg: string; name: string }> = {
+  lumber: { bg: "#2f7d3a", fg: "#fff", name: "Wood" },
+  brick: { bg: "#c4522f", fg: "#fff", name: "Brick" },
+  wool: { bg: "#8fd16a", fg: "#10200a", name: "Sheep" },
+  grain: { bg: "#f2c230", fg: "#2a2000", name: "Wheat" },
+  ore: { bg: "#8a93a6", fg: "#10131a", name: "Steel" },
 };
+const DEV_CHIP = { bg: "#7b5fd6", fg: "#fff" };
 
 const DEV_LABEL: Record<DevCard, { short: string; long: string }> = {
   knight: { short: "Knight", long: "Knight" },
@@ -43,7 +44,7 @@ const STYLE = `
 :host { all: initial; }
 .panel {
   position: fixed; top: 80px; right: 16px; z-index: 2147483647;
-  width: 400px; max-height: 90vh; overflow: auto;
+  width: 460px; max-height: 90vh; overflow: auto;
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: #f5f7fa;
   background: #151922; border: 1px solid #2c3342; border-radius: 10px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.5);
@@ -67,7 +68,8 @@ button:hover { background: #445069; }
 table { width: 100%; border-collapse: separate; border-spacing: 0 3px; color: inherit; font: inherit; }
 th, td { padding: 3px 2px; text-align: center; font-variant-numeric: tabular-nums; }
 th.name, td.name { text-align: left; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
-.chip { display: inline-block; width: 34px; height: 34px; line-height: 34px; border-radius: 7px; font-size: 16px; font-weight: 800; }
+.chip { display: inline-block; min-width: 44px; padding: 5px 2px; border-radius: 7px; font-size: 13px; font-weight: 800; }
+td.devcol { color: #c7b6ff; }
 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 7px; vertical-align: 0; }
 tr.player td { background: #1c212c; }
 tr.player td:first-child { border-radius: 6px 0 0 6px; padding-left: 6px; }
@@ -98,6 +100,7 @@ tr.bank td { color: #a9b2c3; font-size: 14px; }
 .dev { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; }
 .dev div { background: #1c212c; border-radius: 6px; padding: 4px 0; }
 .dev b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.dev em { display: block; font-style: normal; font-size: 11px; color: #c7b6ff; }
 .dev span { font-size: 12px; color: #a9b2c3; }
 .dev .zero b { color: #4f5768; }
 select { font: inherit; background: #0e1117; color: inherit; border: 1px solid #333c4e; border-radius: 5px; padding: 2px 4px; }
@@ -241,8 +244,8 @@ export class Hud {
   private resources(game: Game): string {
     const header = RESOURCES.map((r) => {
       const s = RES_STYLE[r];
-      return `<th title="${s.name}"><span class="chip" style="background:${s.bg};color:${s.fg}">${s.letter}</span></th>`;
-    }).join("");
+      return `<th><span class="chip" style="background:${s.bg};color:${s.fg}">${s.name}</span></th>`;
+    }).join("") + `<th title="Unplayed development cards"><span class="chip" style="background:${DEV_CHIP.bg};color:${DEV_CHIP.fg}">Dev</span></th>`;
 
     let anyUnsure = false;
     const rows = game.players
@@ -261,25 +264,27 @@ export class Hud {
         const me = p === game.selfName;
         const color = this.colors.get(p) ?? (me ? "#ffd76a" : "#6b7385");
         const over = range.total > game.discardLimit;
+        const dev = game.devInHand(p);
+        const devCell = `<td class="n devcol${dev === 0 ? " zero" : ""}" title="${dev} unplayed dev card${dev === 1 ? "" : "s"}">${dev}</td>`;
         const totalTip = over ? `${range.total} cards: loses ${Math.floor(range.total / 2)} on a 7` : `${range.total} cards`;
         return (
           `<tr class="player${me ? " me" : ""}">` +
-          `<td class="name" title="${esc(p)}${this.devNote(game, p)}"><span class="dot" style="background:${esc(color)}"></span>${esc(p)}</td>` +
-          `${cells}<td class="total" title="${totalTip}"><span class="badge${over ? " over" : ""}">${range.total}</span></td></tr>`
+          `<td class="name" title="${esc(p)}"><span class="dot" style="background:${esc(color)}"></span>${esc(p)}</td>` +
+          `${cells}${devCell}<td class="total" title="${totalTip}"><span class="badge${over ? " over" : ""}">${range.total}</span></td></tr>`
         );
       })
       .join("");
 
     const bank = game.hands.bank();
-    const bankRow = `<tr class="bank"><td class="name">Bank</td>${RESOURCES.map((r) => `<td>${bank[r]}</td>`).join("")}<td></td></tr>`;
+    const bankRow = `<tr class="bank"><td class="name">Bank</td>${RESOURCES.map((r) => `<td>${bank[r]}</td>`).join("")}<td title="Dev cards left in the deck">${game.devDeckRemaining()}</td><td></td></tr>`;
     const note = anyUnsure
       ? `<div class="note"><span class="u">Amber ?</span> means a card was stolen out of sight. Hover for the range.</div>`
       : "";
 
     return `
       <table>
-        <tr><th class="name"></th>${header}<th title="Total cards">Total</th></tr>
-        ${rows || `<tr><td class="name" colspan="7">Waiting for the game log…</td></tr>`}
+        <tr><th class="name"></th>${header}<th title="Total resource cards (what counts for discards)">Total</th></tr>
+        ${rows || `<tr><td class="name" colspan="8">Waiting for the game log…</td></tr>`}
         ${bankRow}
       </table>${note}`;
   }
@@ -306,34 +311,19 @@ export class Hud {
       <div class="note"><span class="key" style="border-top:2px solid #ffd76a"></span>expected for ${game.rolls} rolls</div>`;
   }
 
-  /** Tooltip suffix: how many dev cards this player is sitting on. */
-  private devNote(game: Game, player: string): string {
-    const n = game.devInHand(player);
-    return n ? `, ${n} unplayed dev card${n > 1 ? "s" : ""}` : "";
-  }
-
   private dev(game: Game): string {
     const unseen = game.devUnseen();
-    const grid = DEV_CARDS.map(
-      (c) =>
-        `<div class="${unseen[c] === 0 ? "zero" : ""}" title="${DEV_LABEL[c].long}: ${unseen[c]} not seen yet">` +
-        `<b>${unseen[c]}</b><span>${DEV_LABEL[c].short}</span></div>`,
-    ).join("");
-
-    const lines: string[] = [];
-    const me = game.selfName;
-    if (me) {
-      const held = game.devHeldKnown(me);
-      const mine = DEV_CARDS.filter((c) => held[c] > 0).map((c) => `${DEV_LABEL[c].long} ${held[c]}`);
-      if (mine.length) lines.push(`You hold: ${mine.join(", ")}`);
-    }
-    for (const p of game.players) {
-      if (p === me) continue;
-      const n = game.devInHand(p);
-      if (n) lines.push(`${esc(p)} holds ${n} unplayed`);
-    }
+    const held = game.selfName ? game.devHeldKnown(game.selfName) : null;
+    const grid = DEV_CARDS.map((c) => {
+      const mine = held?.[c] ?? 0;
+      const tip = `${DEV_LABEL[c].long}: ${unseen[c]} not seen yet${mine ? `, plus ${mine} in your hand` : ""}`;
+      return (
+        `<div class="${unseen[c] === 0 ? "zero" : ""}" title="${tip}">` +
+        `<b>${unseen[c]}</b><span>${DEV_LABEL[c].short}</span>${mine ? `<em>+${mine} yours</em>` : ""}</div>`
+      );
+    }).join("");
     return `<div class="dev">${grid}</div>
-      <div class="note">Not yet seen: in the deck or in someone's hand.${lines.length ? "<br>" + lines.join("<br>") : ""}</div>`;
+      <div class="note">Cards you haven't seen: still in the deck or in an opponent's hand. Played cards and your own are not counted.</div>`;
   }
 
   private settings(game: Game): string {
