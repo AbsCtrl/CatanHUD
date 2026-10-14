@@ -111,6 +111,12 @@ describe("Game", () => {
     expect(g.devInHand("Bob")).toBe(0);
   });
 
+  it("ignores card faces on other players' purchases", () => {
+    const g = play(["Bob received starting resources {wool} {grain} {ore}", "Bob bought {knight}"], "Me");
+    expect(g.devUnseen().knight).toBe(14);
+    expect(g.devInHand("Bob")).toBe(1);
+  });
+
   it("uses a discard limit of 9 in 1v1 and 7 otherwise", () => {
     const g = play(["Me rolled {dice1} {dice2}", "Bob rolled {dice3} {dice4}"], "Me");
     expect(g.mode).toBe("1v1");
