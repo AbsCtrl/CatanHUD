@@ -101,7 +101,6 @@ tr.bank td { color: #a9b2c3; font-size: 14px; }
 .dev { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; text-align: center; }
 .dev div { background: #1c212c; border-radius: 6px; padding: 4px 0; }
 .dev b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
-.dev em { display: block; font-style: normal; font-size: 11px; color: #c7b6ff; }
 .dev span { font-size: 12px; color: #a9b2c3; }
 .dev .zero b { color: #4f5768; }
 select { font: inherit; background: #0e1117; color: inherit; border: 1px solid #333c4e; border-radius: 5px; padding: 2px 4px; }
@@ -315,17 +314,26 @@ export class Hud {
 
   private dev(game: Game): string {
     const unseen = game.devUnseen();
-    const held = game.selfName ? game.devHeldKnown(game.selfName) : null;
-    const grid = DEV_CARDS.map((c) => {
-      const mine = held?.[c] ?? 0;
-      const tip = `${DEV_LABEL[c].long}: ${unseen[c]} not seen yet${mine ? `, plus ${mine} in your hand` : ""}`;
-      return (
-        `<div class="${unseen[c] === 0 ? "zero" : ""}" title="${tip}">` +
-        `<b>${unseen[c]}</b><span>${DEV_LABEL[c].short}</span>${mine ? `<em>+${mine} yours</em>` : ""}</div>`
-      );
-    }).join("");
+    const grid = DEV_CARDS.map(
+      (c) =>
+        `<div class="${unseen[c] === 0 ? "zero" : ""}" title="${DEV_LABEL[c].long}: ${unseen[c]} not seen yet">` +
+        `<b>${unseen[c]}</b><span>${DEV_LABEL[c].short}</span></div>`,
+    ).join("");
+
+    const lines: string[] = [];
+    const me = game.selfName;
+    if (me) {
+      const held = game.devHeldKnown(me);
+      const mine = DEV_CARDS.filter((c) => held[c] > 0).map((c) => `${DEV_LABEL[c].long} ${held[c]}`);
+      if (mine.length) lines.push(`You hold: ${mine.join(", ")}`);
+    }
+    for (const p of game.players) {
+      if (p === me) continue;
+      const n = game.devInHand(p);
+      if (n) lines.push(`${esc(p)} holds ${n} unplayed`);
+    }
     return `<div class="dev">${grid}</div>
-      <div class="note">Cards you haven't seen: still in the deck or in an opponent's hand. Played cards and your own are not counted.</div>`;
+      <div class="note">Not yet seen: in the deck or in someone's hand.${lines.length ? "<br>" + lines.join("<br>") : ""}</div>`;
   }
 
   private settings(game: Game): string {
