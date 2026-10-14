@@ -44,7 +44,7 @@ const STYLE = `
 :host { all: initial; }
 .panel {
   position: fixed; top: 80px; right: 16px; z-index: 2147483647;
-  width: 460px; max-height: 90vh; overflow: auto;
+  width: 490px; max-height: 90vh; overflow: auto;
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: #f5f7fa;
   background: #151922; border: 1px solid #2c3342; border-radius: 10px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.5);
@@ -70,6 +70,7 @@ th, td { padding: 3px 2px; text-align: center; font-variant-numeric: tabular-num
 th.name, td.name { text-align: left; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
 .chip { display: inline-block; min-width: 44px; padding: 5px 2px; border-radius: 7px; font-size: 13px; font-weight: 800; }
 td.devcol { color: #c7b6ff; }
+.devsep { padding-left: 12px !important; border-left: 2px solid #2c3342; }
 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 7px; vertical-align: 0; }
 tr.player td { background: #1c212c; }
 tr.player td:first-child { border-radius: 6px 0 0 6px; padding-left: 6px; }
@@ -245,7 +246,8 @@ export class Hud {
     const header = RESOURCES.map((r) => {
       const s = RES_STYLE[r];
       return `<th><span class="chip" style="background:${s.bg};color:${s.fg}">${s.name}</span></th>`;
-    }).join("") + `<th title="Unplayed development cards"><span class="chip" style="background:${DEV_CHIP.bg};color:${DEV_CHIP.fg}">Dev</span></th>`;
+    }).join("");
+    const devHeader = `<th class="devsep" title="Unplayed development cards"><span class="chip" style="background:${DEV_CHIP.bg};color:${DEV_CHIP.fg}">Dev</span></th>`;
 
     let anyUnsure = false;
     const rows = game.players
@@ -265,25 +267,25 @@ export class Hud {
         const color = this.colors.get(p) ?? (me ? "#ffd76a" : "#6b7385");
         const over = range.total > game.discardLimit;
         const dev = game.devInHand(p);
-        const devCell = `<td class="n devcol${dev === 0 ? " zero" : ""}" title="${dev} unplayed dev card${dev === 1 ? "" : "s"}">${dev}</td>`;
+        const devCell = `<td class="n devcol devsep${dev === 0 ? " zero" : ""}" title="${dev} unplayed dev card${dev === 1 ? "" : "s"}">${dev}</td>`;
         const totalTip = over ? `${range.total} cards: loses ${Math.floor(range.total / 2)} on a 7` : `${range.total} cards`;
         return (
           `<tr class="player${me ? " me" : ""}">` +
           `<td class="name" title="${esc(p)}"><span class="dot" style="background:${esc(color)}"></span>${esc(p)}</td>` +
-          `${cells}${devCell}<td class="total" title="${totalTip}"><span class="badge${over ? " over" : ""}">${range.total}</span></td></tr>`
+          `${cells}<td class="total" title="${totalTip}"><span class="badge${over ? " over" : ""}">${range.total}</span></td>${devCell}</tr>`
         );
       })
       .join("");
 
     const bank = game.hands.bank();
-    const bankRow = `<tr class="bank"><td class="name">Bank</td>${RESOURCES.map((r) => `<td>${bank[r]}</td>`).join("")}<td title="Dev cards left in the deck">${game.devDeckRemaining()}</td><td></td></tr>`;
+    const bankRow = `<tr class="bank"><td class="name">Bank</td>${RESOURCES.map((r) => `<td>${bank[r]}</td>`).join("")}<td></td><td class="devsep" title="Dev cards left in the deck">${game.devDeckRemaining()}</td></tr>`;
     const note = anyUnsure
       ? `<div class="note"><span class="u">Amber ?</span> means a card was stolen out of sight. Hover for the range.</div>`
       : "";
 
     return `
       <table>
-        <tr><th class="name"></th>${header}<th title="Total resource cards (what counts for discards)">Total</th></tr>
+        <tr><th class="name"></th>${header}<th title="Total resource cards (what counts for discards)">Total</th>${devHeader}</tr>
         ${rows || `<tr><td class="name" colspan="8">Waiting for the game log…</td></tr>`}
         ${bankRow}
       </table>${note}`;
