@@ -1,6 +1,6 @@
 # CatanHUD
 
-A heads-up display for [Colonist.io](https://colonist.io) that tracks what every player is holding, how the dice are rolling, and what's left in the dev card deck. It only reads the public game log, so it shows nothing a careful player at the table couldn't track by hand.
+A heads-up display for [Colonist.io](https://colonist.io) that tracks what every player is holding, how the dice are rolling, and what's left in the dev card deck. It only reads public information: the game log, and the board layout and building positions from Colonist's own connection. It shows nothing a careful player at the table couldn't track by hand.
 
 Post-game statistics (luck, dice distribution across games) are planned next.
 
@@ -20,6 +20,8 @@ Open **Settings** in the panel and type your Colonist username so lines that say
 - **Cards:** each player's Wood, Brick, Sheep, Wheat and Steel, their unplayed dev cards, and their resource total, plus what's left in the bank and dev deck. Names are shown in each player's game color. When someone steals a card you couldn't see, the affected counts turn amber with a `?` and show the most likely value; hover for the full range. They firm up as later builds and trades rule options out.
 - **Game mode and discard limit:** the header shows the mode (1v1 or the player count) and the discard limit: 9 in 1v1, 7 otherwise. A total over the limit turns red. You can fix the limit in **Settings** if a lobby uses a different rule.
 - **Dev cards:** cards left in the deck, and how many of each type haven't been seen yet (still in the deck or in someone's hand). Your own purchases are counted from the card face the log shows you, and each opponent's unplayed count is listed.
+- **Board pips:** a small map of the board with the five best open settlement spots numbered by pip count (taken corners and their neighbors are skipped), and each player's pips per resource, with cities counted double. **Avg** is that player's average pips per roll this game.
+- **Pip history:** every finished game's average pips per roll is saved for each player. **Copy CSV** in **Settings** copies them all for a spreadsheet, one row per player per game, with a `won` column.
 - **Dice:** a histogram of rolls against the expected 2d6 curve (folded by default).
 
 ## If counts look wrong
@@ -38,4 +40,6 @@ Layout:
 
 - `src/parser/` turns a log entry into a typed event (`tokenize.ts` maps icons to `{lumber}`-style tokens, `parseLine.ts` matches the phrasing).
 - `src/engine/` is pure state: `hands.ts` tracks possible hands across unknown steals, `game.ts` applies events and derives counts.
+- `src/board/` reads the board: `extract.ts` pulls tiles, buildings and player names out of Colonist's websocket messages (nothing else), `board.ts` does the hex geometry, best spots and pips.
+- `src/page/` runs in the page itself to see the websocket, and posts board updates to the content script.
 - `src/content/` is the browser side: `logSource.ts` finds and watches the game log, `hud.ts` draws the panel in a Shadow DOM.

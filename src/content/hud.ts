@@ -1,5 +1,7 @@
+import { type BoardState, bestSpots, PLAYER_COLORS, playerName, playerPips, spots, tileCenter, tileCorners } from "../board/board";
 import type { Game } from "../engine/game";
-import { DEV_CARDS, type DevCard, RESOURCES, type Resource } from "../types";
+import type { PipStats } from "../engine/pipStats";
+import { DEV_CARDS, type DevCard, handTotal, RESOURCES, type Resource } from "../types";
 
 /** Card colors close to Colonist's own, labeled with the names players actually use. */
 const RES_STYLE: Record<Resource, { bg: string; fg: string; name: string }> = {
@@ -10,6 +12,7 @@ const RES_STYLE: Record<Resource, { bg: string; fg: string; name: string }> = {
   ore: { bg: "#8a93a6", fg: "#10131a", name: "Steel" },
 };
 const DEV_CHIP = { bg: "#7b5fd6", fg: "#fff" };
+const DESERT = "#d8c58f";
 
 const DEV_LABEL: Record<DevCard, { short: string; long: string }> = {
   knight: { short: "Knight", long: "Knight" },
@@ -19,7 +22,7 @@ const DEV_LABEL: Record<DevCard, { short: string; long: string }> = {
   monopoly: { short: "Mono", long: "Monopoly" },
 };
 
-type Section = "resources" | "dice" | "dev" | "settings";
+type Section = "resources" | "board" | "dice" | "dev" | "settings";
 
 export interface HudPrefs {
   scale: number;
@@ -104,6 +107,18 @@ tr.bank td { color: #a9b2c3; font-size: 14px; }
 select { font: inherit; background: #0e1117; color: inherit; border: 1px solid #333c4e; border-radius: 5px; padding: 2px 4px; }
 ul { margin: 0; padding-left: 18px; }
 li { margin: 2px 0; }
+.board { display: flex; gap: 12px; align-items: flex-start; }
+.board svg { flex: none; width: 220px; height: auto; }
+.board svg text { font: 700 0.5px system-ui, sans-serif; text-anchor: middle; dominant-baseline: central; }
+.spots { flex: 1; font-size: 12px; color: #a9b2c3; }
+.spots ol { margin: 2px 0 0; padding-left: 18px; }
+.spots li { margin: 3px 0; }
+.spots li b { color: #f5f7fa; font-size: 14px; margin-right: 4px; }
+.mini { display: inline-block; min-width: 16px; padding: 0 3px; margin-right: 2px; border-radius: 4px; font-size: 11px; font-weight: 700; text-align: center; }
+table.pips { margin-top: 6px; font-size: 13px; }
+table.pips td { padding: 2px; }
+table.pips td.name { font-size: 13px; }
+table.pips .dot { width: 9px; height: 9px; margin-right: 5px; }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0; }
 input { font: inherit; width: 130px; background: #0e1117; color: inherit; border: 1px solid #333c4e; border-radius: 5px; padding: 2px 6px; }
 `;
@@ -112,6 +127,7 @@ export interface HudCallbacks {
   onSelfName(name: string): void;
   onCopyLog(): void;
   onPrefs(prefs: HudPrefs): void;
+  onCopyPipStats(): void;
 }
 
 export class Hud {
@@ -124,6 +140,8 @@ export class Hud {
   private prefs: HudPrefs;
   private colors = new Map<string, string>();
   private lastGame: Game | null = null;
+  private board: BoardState | null = null;
+  private pipStats: PipStats | null = null;
 
   constructor(private cb: HudCallbacks, selfName: string, prefs: Partial<HudPrefs> = {}) {
     this.selfName = selfName;
@@ -166,6 +184,8 @@ export class Hud {
         this.setPrefs({ collapsed });
       } else if (target.closest("[data-act=copy]")) {
         this.cb.onCopyLog();
+      } else if (target.closest("[data-act=copypips]")) {
+        this.cb.onCopyPipStats();
       }
     });
     this.body.addEventListener("change", (e) => {
@@ -189,6 +209,13 @@ export class Hud {
   /** Remember each player's color from the log so names match the board. */
   addColors(colors: Record<string, string>): void {
     for (const [name, color] of Object.entries(colors)) this.colors.set(name, color);
+  }
+
+  /** Latest board from the page script, and the running pips-per-roll averages. */
+  setBoard(board: BoardState | null, stats: PipStats): void {
+    this.board = board;
+    this.pipStats = stats;
+    if (this.lastGame) this.update(this.lastGame);
   }
 
   /** Re-render on the next frame; cheap to call on every event. */
@@ -234,6 +261,7 @@ export class Hud {
     this.body.innerHTML = [
       this.section("resources", `Cards · ${mode}discard over ${game.discardLimit}`, this.resources(game)),
       this.section("dev", `Dev deck · ${game.devDeckRemaining()} left`, this.dev(game)),
+      this.section("board", "Board pips", this.boardView()),
       this.section("dice", `Dice · ${game.rolls} rolls`, this.dice(game)),
       this.section("settings", "Settings", this.settings(game)),
     ].join("");
@@ -329,6 +357,81 @@ export class Hud {
     }`;
   }
 
+  /** Mini-map with the best open spots numbered, then pips per player. */
+  private boardView(): string {
+    const board = this.board;
+    if (!board) return `<div class="note">Waiting for the board. It's read when a game starts, so reload the game tab if this stays empty.</div>`;
+
+    const best = bestSpots(board, 5);
+    const pts = board.tiles.flatMap((t) => tileCorners(t));
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const pad = 0.3;
+    const box = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) - Math.min(...xs) + 2 * pad, Math.max(...ys) - Math.min(...ys) + 2 * pad];
+    const f = (n: number) => n.toFixed(2);
+
+    const hexes = board.tiles
+      .map((t) => {
+        const fill = t.resource ? RES_STYLE[t.resource].bg : DESERT;
+        const poly = tileCorners(t).map((p) => `${f(p[0])},${f(p[1])}`).join(" ");
+        const [cx, cy] = tileCenter(t.x, t.y);
+        const hot = t.number === 6 || t.number === 8;
+        const token = t.number
+          ? `<circle cx="${f(cx)}" cy="${f(cy)}" r="0.36" fill="#f3e9cf"/><text x="${f(cx)}" y="${f(cy)}" fill="${hot ? "#c0282d" : "#222"}">${t.number}</text>`
+          : "";
+        return `<polygon points="${poly}" fill="${fill}" stroke="#151922" stroke-width="0.08"/>${token}`;
+      })
+      .join("");
+    const pieces = spots(board)
+      .filter((s) => s.building)
+      .map((s) => {
+        const color = PLAYER_COLORS[s.building!.owner]?.hex ?? "#fff";
+        return s.building!.city
+          ? `<rect x="${f(s.px - 0.24)}" y="${f(s.py - 0.24)}" width="0.48" height="0.48" fill="${color}" stroke="#000" stroke-width="0.06"/>`
+          : `<circle cx="${f(s.px)}" cy="${f(s.py)}" r="0.2" fill="${color}" stroke="#000" stroke-width="0.06"/>`;
+      })
+      .join("");
+    const marks = best
+      .map(
+        (s, i) =>
+          `<circle cx="${f(s.px)}" cy="${f(s.py)}" r="0.34" fill="#ffd76a" stroke="#151922" stroke-width="0.08"/><text x="${f(s.px)}" y="${f(s.py)}" fill="#111">${i + 1}</text>`,
+      )
+      .join("");
+    const svg = `<svg viewBox="${box.map(f).join(" ")}" xmlns="http://www.w3.org/2000/svg">${hexes}${pieces}${marks}</svg>`;
+
+    const spotList = best.length
+      ? `Best open spots<ol>${best
+          .map((s) => {
+            const yields = s.tiles
+              .filter((t) => t.resource && t.number)
+              .map((t) => `<span class="mini" style="background:${RES_STYLE[t.resource!].bg};color:${RES_STYLE[t.resource!].fg}" title="${RES_STYLE[t.resource!].name} ${t.number}">${t.number}</span>`)
+              .join("");
+            return `<li><b>${s.pips}</b>${yields}</li>`;
+          })
+          .join("")}</ol>`
+      : "No open spots left.";
+
+    const owned = playerPips(board);
+    const rows = [...owned]
+      .map(([color, hand]) => {
+        const name = playerName(board, color);
+        const avg = this.pipStats?.average(name);
+        const cells = RESOURCES.map((r) => `<td class="${hand[r] === 0 ? "zero" : ""}">${hand[r]}</td>`).join("");
+        const dot = this.colors.get(name) ?? PLAYER_COLORS[color]?.hex ?? "#6b7385";
+        return (
+          `<tr class="player"><td class="name" title="${esc(name)}"><span class="dot" style="background:${esc(dot)}"></span>${esc(name)}</td>` +
+          `${cells}<td><b>${handTotal(hand)}</b></td><td title="Average pips per roll this game">${avg == null ? "–" : avg.toFixed(1)}</td></tr>`
+        );
+      })
+      .join("");
+    const head = RESOURCES.map((r) => `<th><span class="mini" style="background:${RES_STYLE[r].bg};color:${RES_STYLE[r].fg}">${RES_STYLE[r].name}</span></th>`).join("");
+    const table = rows
+      ? `<table class="pips"><tr><th class="name"></th>${head}<th title="Total pips; cities count double">Pips</th><th title="Average pips per roll this game">Avg</th></tr>${rows}</table>`
+      : "";
+
+    return `<div class="board">${svg}<div class="spots">${spotList}</div></div>${table}`;
+  }
+
   private settings(game: Game): string {
     const auto = `Auto (${game.isOneVsOne ? "1v1: 9" : "7"})`;
     const options = [`<option value="auto">${auto}</option>`]
@@ -337,6 +440,7 @@ export class Hud {
     return `
       <div class="row"><span>Your Colonist name</span><input name="self" value="${esc(this.selfName)}" placeholder="username"></div>
       <div class="row"><span>Discard when over</span><select name="discard">${options}</select></div>
+      <div class="row"><span>Pips per roll, all saved games</span><button data-act="copypips" title="Copy a CSV of average pips per roll for every finished game">Copy CSV</button></div>
       <div class="row"><span>Counts look wrong?</span><button data-act="copy" title="Copy raw log entries to paste into a bug report">Copy log</button></div>`;
   }
 

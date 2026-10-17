@@ -6,7 +6,7 @@ mkdirSync("dist", { recursive: true });
 cpSync("static", "dist", { recursive: true });
 
 const options = {
-  entryPoints: { content: "src/content/main.ts" },
+  entryPoints: { content: "src/content/main.ts", page: "src/page/main.ts" },
   outdir: "dist",
   bundle: true,
   format: "iife",

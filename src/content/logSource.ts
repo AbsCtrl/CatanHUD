@@ -73,7 +73,8 @@ export class LogWatcher {
   private seenKeys = new Set<string>();
   private pollTimer: number | undefined;
 
-  constructor(private onEntry: (entry: LogEntry) => void) {}
+  /** `live` is false for entries already in the log when we found it (a reload or late join). */
+  constructor(private onEntry: (entry: LogEntry, live: boolean) => void) {}
 
   start(): void {
     this.poll();
@@ -93,13 +94,13 @@ export class LogWatcher {
   private attach(container: Element): void {
     this.observer?.disconnect();
     this.container = container;
-    for (const child of Array.from(container.children)) this.handle(child);
+    for (const child of Array.from(container.children)) this.handle(child, false);
     this.observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
         m.addedNodes.forEach((node) => {
           if (node.nodeType !== 1) return;
           const entry = this.topLevel(node as Element);
-          if (entry) this.handle(entry);
+          if (entry) this.handle(entry, true);
         });
       }
     });
@@ -113,7 +114,7 @@ export class LogWatcher {
     return cur;
   }
 
-  private handle(el: Element): void {
+  private handle(el: Element, live: boolean): void {
     const key = entryKey(el);
     if (key !== null) {
       if (this.seenKeys.has(key)) return;
@@ -124,7 +125,7 @@ export class LogWatcher {
     }
     const line = tokenize(el);
     if (!line) return;
-    this.onEntry({ html: el.outerHTML, line, event: parseLine(line), colors: nameColors(el) });
+    this.onEntry({ html: el.outerHTML, line, event: parseLine(line), colors: nameColors(el) }, live);
   }
 
   stop(): void {
